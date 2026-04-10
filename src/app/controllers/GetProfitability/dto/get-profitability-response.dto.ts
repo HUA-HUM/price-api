@@ -4,6 +4,12 @@ class ProfitabilityInputDto {
   @ApiProperty({ example: 'MLA123456789' })
   mla: string;
 
+  @ApiProperty({ example: 'MLA002' })
+  categoryId: string;
+
+  @ApiProperty({ example: 'gold_special' })
+  publicationType: string;
+
   @ApiProperty({ example: 'SKU123' })
   sku: string;
 

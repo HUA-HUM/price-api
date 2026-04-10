@@ -33,6 +33,29 @@ export class GetProfitabilitycontroller {
         },
       ],
     },
+    examples: {
+      withMeliContribution: {
+        summary: 'Promocion con aporte de Mercado Libre',
+        value: {
+          mla: 'MLA123456789',
+          categoryId: 'MLA002',
+          publicationType: 'gold_special',
+          sku: 'SKU123',
+          salePrice: 100000,
+          meliContributionPercentage: 10,
+        },
+      },
+      withoutMeliContribution: {
+        summary: 'Promocion sin aporte de Mercado Libre',
+        value: {
+          mla: 'MLA123456789',
+          categoryId: 'MLA002',
+          publicationType: 'gold_special',
+          sku: 'SKU123',
+          salePrice: 100000,
+        },
+      },
+    },
   })
   @ApiOkResponse({
     description: 'Resultado economico de la promocion',
@@ -67,6 +90,8 @@ export class GetProfitabilitycontroller {
     return {
       input: {
         mla: body.mla,
+        categoryId: body.categoryId,
+        publicationType: body.publicationType,
         sku: body.sku,
         salePrice,
         meliContributionPercentage,
@@ -101,6 +126,14 @@ export class GetProfitabilitycontroller {
 
     if (!body.sku?.trim()) {
       throw new BadRequestException('sku is required');
+    }
+
+    if (!body.categoryId?.trim()) {
+      throw new BadRequestException('categoryId is required');
+    }
+
+    if (!body.publicationType?.trim()) {
+      throw new BadRequestException('publicationType is required');
     }
 
     if (typeof body.salePrice !== 'number' || body.salePrice <= 0) {

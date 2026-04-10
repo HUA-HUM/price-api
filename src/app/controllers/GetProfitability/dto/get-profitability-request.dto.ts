@@ -8,6 +8,18 @@ export class GetProfitabilityRequestWithContributionDto {
   mla: string;
 
   @ApiProperty({
+    example: 'MLA002',
+    description: 'Identificador de la categoria de Mercado Libre',
+  })
+  categoryId: string;
+
+  @ApiProperty({
+    example: 'gold_special',
+    description: 'Tipo de publicacion del item',
+  })
+  publicationType: string;
+
+  @ApiProperty({
     example: 'SKU123',
     description: 'SKU interno del producto',
   })
@@ -32,6 +44,18 @@ export class GetProfitabilityRequestWithoutContributionDto {
     description: 'Identificador del item en Mercado Libre',
   })
   mla: string;
+
+  @ApiProperty({
+    example: 'MLA002',
+    description: 'Identificador de la categoria de Mercado Libre',
+  })
+  categoryId: string;
+
+  @ApiProperty({
+    example: 'gold_special',
+    description: 'Tipo de publicacion del item',
+  })
+  publicationType: string;
 
   @ApiProperty({
     example: 'SKU123',
