@@ -15,7 +15,9 @@ type MeliCommissionApiResponse = {
   gross_amount?: number | null;
   sale_fee_amount?: number | null;
   sale_fee_details?: {
+    financing_add_on_fee?: number;
     percentage_fee?: number;
+    meli_percentage_fee?: number;
     fixed_fee?: number | null;
     gross_amount?: number | null;
   };
@@ -60,9 +62,10 @@ export class GetCommissionCategoryRepository
 
     return {
       percentage:
+        response.data.sale_fee_details?.meli_percentage_fee ??
+        response.data.sale_fee_details?.percentage_fee ??
         response.data.percentage ??
         response.data.percentage_fee ??
-        response.data.sale_fee_details?.percentage_fee ??
         0,
       fixedFee:
         response.data.fixed_fee ??
@@ -74,6 +77,13 @@ export class GetCommissionCategoryRepository
         response.data.sale_fee_amount ??
         response.data.sale_fee_details?.gross_amount ??
         null,
+      totalPercentage:
+        response.data.sale_fee_details?.percentage_fee ??
+        response.data.percentage_fee ??
+        response.data.percentage ??
+        null,
+      financingAddOnFee:
+        response.data.sale_fee_details?.financing_add_on_fee ?? null,
     };
   }
 
