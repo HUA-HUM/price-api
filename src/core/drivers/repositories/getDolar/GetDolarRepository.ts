@@ -5,7 +5,7 @@ import { DolarEntity } from 'src/core/entitis/getDolar/DolarEntity';
 
 type CriptoYaDolarResponse = {
   oficial?: {
-    bid?: number;
+    price?: number;
   };
   mep: {
     al30?: {
@@ -34,7 +34,7 @@ export class GetDolarRepository implements IGetDolarRepository {
 
     const buy = response.data.mep.al30?.['24hs']?.price;
     const sell = response.data.mep.gd30?.['24hs']?.price;
-    const officialBuy = response.data.oficial?.bid;
+    const officialBuy = response.data.oficial?.price;
 
     if (
       typeof buy !== 'number' ||
