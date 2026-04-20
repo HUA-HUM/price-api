@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import {
   GetCommissionCategoryParams,
@@ -24,7 +25,7 @@ type MeliCommissionApiResponse = {
 export class GetCommissionCategoryRepository
   implements IGetCommissionCategoryRepository
 {
-  private readonly baseUrl = 'https://api.meli.loquieroaca.com';
+  constructor(private readonly configService: ConfigService) {}
 
   async getByProduct(
     params: GetCommissionCategoryParams,
@@ -46,11 +47,9 @@ export class GetCommissionCategoryRepository
     }
 
     const response = await axios.get<MeliCommissionApiResponse>(
-      `${this.baseUrl}/meli/products/${params.mla}/commission`,
+      `${this.getBaseUrl()}/meli/products/${params.mla}/commission`,
       {
-        headers: {
-          accept: 'application/json',
-        },
+        headers: this.getHeaders(),
         params: {
           price: params.price,
           category_id: params.categoryId,
@@ -75,6 +74,24 @@ export class GetCommissionCategoryRepository
         response.data.sale_fee_amount ??
         response.data.sale_fee_details?.gross_amount ??
         null,
+    };
+  }
+
+  private getBaseUrl(): string {
+    return (
+      this.configService.get<string>('MELI_API_BASE_URL') ??
+      'https://api.meli.loquieroaca.com'
+    );
+  }
+
+  private getHeaders(): Record<string, string> {
+    const apiKey = this.configService.get<string>('MELI_API_KEY');
+    const apiKeyHeader =
+      this.configService.get<string>('MELI_API_KEY_HEADER') ?? 'x-api-key';
+
+    return {
+      accept: 'application/json',
+      ...(apiKey ? { [apiKeyHeader]: apiKey } : {}),
     };
   }
 }
