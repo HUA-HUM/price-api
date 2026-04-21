@@ -30,24 +30,20 @@ export function calculateCostosOperativos(
     tcAmco: tiposDeCambio.tcAmco,
     precioAmzAmount,
   });
+  const importBaseAmount = roundCurrency(
+    precioAmzAmount * 1.01 + 2.5 * datosBase.weightKg * tiposDeCambio.tcTlq,
+  );
   const thresholdAmount = roundCurrency(400 * tiposDeCambio.tcTlq);
   const taxableExcessAmount =
-    precioAmzAmount > thresholdAmount
-      ? roundCurrency(precioAmzAmount - thresholdAmount)
+    importBaseAmount > thresholdAmount
+      ? roundCurrency(importBaseAmount - thresholdAmount)
       : 0;
-  const imptosAmcoBaseAmount = roundCurrency(
-    precioAmzAmount * emo.ivaCatAranc,
-  );
   const imptosAmcoExcessAmount = roundCurrency(
     taxableExcessAmount * emo.sumaTasasYDer,
   );
-  const imptosAmcoExcessVatAmount = roundCurrency(
-    imptosAmcoExcessAmount * emo.ivaTasasYDer,
-  );
   const imptosAmcoAmount = roundCurrency(
-    imptosAmcoBaseAmount +
-      imptosAmcoExcessAmount +
-      imptosAmcoExcessVatAmount,
+    imptosAmcoExcessAmount +
+      (imptosAmcoExcessAmount + importBaseAmount) * emo.ivaCatAranc,
   );
 
   return {

@@ -44,7 +44,6 @@ export interface CostosOperativosResult {
 export interface EmoResult {
   ivaCatAranc: number;
   sumaTasasYDer: number;
-  ivaTasasYDer: number;
 }
 
 export interface CostosCalculadosResult {

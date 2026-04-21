@@ -83,11 +83,8 @@ class ProfitabilityEmoDto {
   @ApiProperty({ example: 0.21 })
   ivaCatAranc: number;
 
-  @ApiProperty({ example: 0.21 })
-  sumaTasasYDer: number;
-
   @ApiProperty({ example: 0.4 })
-  ivaTasasYDer: number;
+  sumaTasasYDer: number;
 }
 
 class ProfitabilityCostosCalculadosDto {
