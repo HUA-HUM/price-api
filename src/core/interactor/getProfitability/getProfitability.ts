@@ -20,6 +20,9 @@ import { GetProfitabilityResponseDto } from 'src/app/controllers/GetProfitabilit
 
 @Injectable()
 export class GetProfitabilityInteractor {
+  private static readonly MAX_ALLOWED_PROFITABILITY_PERCENT = 45;
+  private static readonly VALID_SKU_PATTERN = /^B0[A-Z0-9]{8}$/;
+
   private readonly logger = new Logger(GetProfitabilityInteractor.name);
 
   constructor(
@@ -45,7 +48,11 @@ export class GetProfitabilityInteractor {
             ((profitAmount / detail.prices.sellerNetPrice) * 100).toFixed(2),
           )
         : 0;
-    const profitable = detail.prices.sellerNetPrice > cost;
+    const profitable = this.isProfitable({
+      detail,
+      cost,
+      profitabilityPercent,
+    });
 
     return {
       input: detail.input,
@@ -61,6 +68,54 @@ export class GetProfitabilityInteractor {
         shouldPause: !profitable,
       },
     };
+  }
+
+  private isProfitable({
+    detail,
+    cost,
+    profitabilityPercent,
+  }: {
+    detail: GetProfitabilityDetailedResult;
+    cost: number;
+    profitabilityPercent: number;
+  }): boolean {
+    if (
+      detail.datosBase.weightKg <= 0 ||
+      detail.datosBase.volumetricWeightKg <= 0
+    ) {
+      this.logger.warn(
+        `Product marked as not profitable because weight is missing or zero: ${JSON.stringify({
+          sku: detail.input.sku,
+          weightKg: detail.datosBase.weightKg,
+          volumetricWeightKg: detail.datosBase.volumetricWeightKg,
+        })}`,
+      );
+      return false;
+    }
+
+    if (!GetProfitabilityInteractor.VALID_SKU_PATTERN.test(detail.input.sku)) {
+      this.logger.warn(
+        `Product marked as not profitable because sku has an invalid format: ${detail.input.sku}`,
+      );
+      return false;
+    }
+
+    if (
+      profitabilityPercent >
+      GetProfitabilityInteractor.MAX_ALLOWED_PROFITABILITY_PERCENT
+    ) {
+      this.logger.warn(
+        `Product marked as not profitable because profitability is above the safety threshold: ${JSON.stringify({
+          sku: detail.input.sku,
+          profitabilityPercent,
+          maxAllowedProfitabilityPercent:
+            GetProfitabilityInteractor.MAX_ALLOWED_PROFITABILITY_PERCENT,
+        })}`,
+      );
+      return false;
+    }
+
+    return detail.prices.sellerNetPrice > cost;
   }
 
   async executeDetailed(

@@ -93,13 +93,15 @@ class ProfitabilityEconomicsDto {
 class ProfitabilityStatusDto {
   @ApiProperty({
     example: true,
-    description: 'Indica si el sellerNetPrice esta por encima del piso sugerido (cost).',
+    description:
+      'Indica si el sellerNetPrice esta por encima del piso sugerido (cost) y pasa las validaciones de seguridad: peso mayor a 0, SKU con formato B0 + 8 caracteres alfanumericos y rentabilidad no mayor al 45%.',
   })
   profitable: boolean;
 
   @ApiProperty({
     example: false,
-    description: 'Indica si deberia pausarse porque no alcanza el piso sugerido.',
+    description:
+      'Indica si deberia pausarse porque no alcanza el piso sugerido o porque fallo alguna validacion de seguridad.',
   })
   shouldPause: boolean;
 }
