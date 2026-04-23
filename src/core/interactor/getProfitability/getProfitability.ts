@@ -20,7 +20,6 @@ import { GetProfitabilityResponseDto } from 'src/app/controllers/GetProfitabilit
 
 @Injectable()
 export class GetProfitabilityInteractor {
-  private static readonly MAX_ALLOWED_PROFITABILITY_PERCENT = 45;
   private static readonly VALID_SKU_PATTERN = /^B0[A-Z0-9]{8}$/;
 
   private readonly logger = new Logger(GetProfitabilityInteractor.name);
@@ -50,8 +49,6 @@ export class GetProfitabilityInteractor {
       cost > 0 ? Number(((profitAmount / cost) * 100).toFixed(2)) : 0;
     const profitable = this.isProfitable({
       detail,
-      cost,
-      profitabilityPercent,
     });
 
     return {
@@ -72,13 +69,20 @@ export class GetProfitabilityInteractor {
 
   private isProfitable({
     detail,
-    cost,
-    profitabilityPercent,
   }: {
     detail: GetProfitabilityDetailedResult;
-    cost: number;
-    profitabilityPercent: number;
   }): boolean {
+    const missingRequiredValue = this.findMissingRequiredValue(detail);
+    if (missingRequiredValue) {
+      this.logger.warn(
+        `Product marked as not profitable because a required pricing value is missing: ${JSON.stringify({
+          sku: detail.input.sku,
+          field: missingRequiredValue,
+        })}`,
+      );
+      return false;
+    }
+
     if (
       detail.datosBase.weightKg <= 0 ||
       detail.datosBase.volumetricWeightKg <= 0
@@ -100,22 +104,37 @@ export class GetProfitabilityInteractor {
       return false;
     }
 
-    if (
-      profitabilityPercent >
-      GetProfitabilityInteractor.MAX_ALLOWED_PROFITABILITY_PERCENT
-    ) {
-      this.logger.warn(
-        `Product marked as not profitable because profitability is above the safety threshold: ${JSON.stringify({
-          sku: detail.input.sku,
-          profitabilityPercent,
-          maxAllowedProfitabilityPercent:
-            GetProfitabilityInteractor.MAX_ALLOWED_PROFITABILITY_PERCENT,
-        })}`,
-      );
-      return false;
+    return true;
+  }
+
+  private findMissingRequiredValue(
+    detail: GetProfitabilityDetailedResult,
+  ): string | null {
+    const requiredNumericFields: Array<[string, number]> = [
+      ['prices.salePrice', detail.prices.salePrice],
+      ['prices.sellerNetPrice', detail.prices.sellerNetPrice],
+      ['datosBase.weightKg', detail.datosBase.weightKg],
+      ['datosBase.volumetricWeightKg', detail.datosBase.volumetricWeightKg],
+      [
+        'costosOperativos.commissionMpPercentage',
+        detail.costosOperativos.commissionMpPercentage,
+      ],
+      ['costosOperativos.precioAmzAmount', detail.costosOperativos.precioAmzAmount],
+      ['costosOperativos.depositoUsaAmount', detail.costosOperativos.depositoUsaAmount],
+      ['costosOperativos.costosAmcoAmount', detail.costosOperativos.costosAmcoAmount],
+      ['costosOperativos.imptosAmcoAmount', detail.costosOperativos.imptosAmcoAmount],
+      ['emo.ivaCatAranc', detail.emo.ivaCatAranc],
+      ['emo.sumaTasasYDer', detail.emo.sumaTasasYDer],
+      ['precio.suggestedPrice', detail.precio.suggestedPrice],
+    ];
+
+    for (const [field, value] of requiredNumericFields) {
+      if (!Number.isFinite(value)) {
+        return field;
+      }
     }
 
-    return detail.prices.sellerNetPrice > cost;
+    return null;
   }
 
   async executeDetailed(
