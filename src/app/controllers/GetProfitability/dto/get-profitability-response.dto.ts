@@ -78,14 +78,16 @@ class ProfitabilityEconomicsDto {
   profitAmount: number;
 
   @ApiProperty({
-    example: 27.99,
-    description: 'Ganancia sobre costo. Formula: profitAmount / cost * 100.',
+    example: 21.87,
+    description:
+      'Porcentaje disponible entre sellerNetPrice y cost. Coincide con precio.discount del detalle. Formula: profitAmount / sellerNetPrice * 100.',
   })
   profitabilityPercent: number;
 
   @ApiProperty({
-    example: 21.87,
-    description: 'Ganancia sobre ingreso real. Formula: profitAmount / sellerNetPrice * 100.',
+    example: 39.73,
+    description:
+      'Rentabilidad sobre costo. Formula: profitAmount / cost * 100.',
   })
   marginPercent: number;
 }

@@ -41,13 +41,13 @@ export class GetProfitabilityInteractor {
       (detail.prices.sellerNetPrice - cost).toFixed(2),
     );
     const profitabilityPercent =
-      cost > 0 ? Number(((profitAmount / cost) * 100).toFixed(2)) : 0;
-    const marginPercent =
       detail.prices.sellerNetPrice > 0
         ? Number(
             ((profitAmount / detail.prices.sellerNetPrice) * 100).toFixed(2),
           )
         : 0;
+    const marginPercent =
+      cost > 0 ? Number(((profitAmount / cost) * 100).toFixed(2)) : 0;
     const profitable = this.isProfitable({
       detail,
       cost,
