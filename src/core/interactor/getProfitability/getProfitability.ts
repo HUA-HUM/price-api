@@ -17,6 +17,7 @@ import {
   PricingFetchersResult,
 } from './getProfitability.types';
 import { GetProfitabilityResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-response.dto';
+import { MadreHttpError } from 'src/core/drivers/repositories/madre-api/http/errors/MadreHttpError';
 
 @Injectable()
 export class GetProfitabilityInteractor {
@@ -140,16 +141,36 @@ export class GetProfitabilityInteractor {
   async executeDetailed(
     body: GetProfitabilityRequest,
   ): Promise<GetProfitabilityDetailedResult> {
-    const productStatus = await this.getPriceSkuInteractor.execute(body.sku);
+    let productStatus;
+    let taxes;
 
-    if (!productStatus) {
-      throw new NotFoundException(
-        `No product status found for sku ${body.sku}`,
-      );
+    try {
+      productStatus = await this.getPriceSkuInteractor.execute(body.sku);
+
+      if (!productStatus) {
+        throw new NotFoundException(
+          `No product status found for sku ${body.sku}`,
+        );
+      }
+
+      taxes = await this.getTaxesInteractor.execute(body.categoryId);
+    } catch (error) {
+      if (this.shouldReturnZeroedResult(error)) {
+        this.logger.warn(
+          `Returning zeroed profitability detail because Madre data is missing: ${JSON.stringify({
+            sku: body.sku,
+            categoryId: body.categoryId,
+            reason:
+              error instanceof Error ? error.message : 'Unknown Madre error',
+          })}`,
+        );
+        return this.buildZeroedDetailedResult(body);
+      }
+
+      throw error;
     }
 
     const officialDolar = await this.getDolarValueInteractor.execute();
-    const taxes = await this.getTaxesInteractor.execute(body.categoryId);
 
     const commissionCategory =
       await this.getCommissionCategoryInteractor.execute({
@@ -222,6 +243,75 @@ export class GetProfitabilityInteractor {
         ).toFixed(1)}%`,
       },
       precio,
+    };
+  }
+
+  private shouldReturnZeroedResult(error: unknown): boolean {
+    if (error instanceof NotFoundException) {
+      return true;
+    }
+
+    return error instanceof MadreHttpError && error.statusCode === 404;
+  }
+
+  private buildZeroedDetailedResult(
+    body: GetProfitabilityRequest,
+  ): GetProfitabilityDetailedResult {
+    const salePrice = body.salePrice;
+    const meliContributionPercentage = body.meliContributionPercentage ?? 0;
+
+    return {
+      input: {
+        mla: body.mla,
+        categoryId: body.categoryId,
+        publicationType: body.publicationType,
+        sku: body.sku,
+        salePrice,
+        meliContributionPercentage,
+      },
+      prices: {
+        salePrice: 0,
+        meliContributionPercentage: 0,
+        meliContributionAmount: 0,
+        sellerNetPrice: 0,
+      },
+      datosBase: {
+        sku: body.sku,
+        weightKg: 0,
+        volumetricWeightKg: 0,
+        sellerNetPrice: 0,
+        categoryId: body.categoryId,
+      },
+      tiposDeCambio: {
+        tcAmco: 0,
+        tcTlq: 0,
+      },
+      costosOperativos: {
+        commissionMpPercentage: 0,
+        envioMlAmount: 0,
+        precioAmzAmount: 0,
+        depositoUsaAmount: 0,
+        costosAmcoAmount: 0,
+        imptosAmcoAmount: 0,
+      },
+      emo: {
+        ivaCatAranc: 0,
+        sumaTasasYDer: 0,
+      },
+      costosCalculados: {
+        utilidadAmount: 0,
+        impuestosMeliAmount: 0,
+        comisionMpAmount: 0,
+      },
+      resultados: {
+        totalCosts: 0,
+        operatingProfit: 0,
+        operatingProfitPercent: '0.0%',
+      },
+      precio: {
+        suggestedPrice: 0,
+        discount: '0.00%',
+      },
     };
   }
 }
