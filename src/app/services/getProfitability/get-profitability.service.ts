@@ -4,6 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { GetProfitabilityInteractor } from 'src/core/interactor/getProfitability/getProfitability';
+import { GetProfitabilityBySalesChannelRequestDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-by-sales-channel-request.dto';
+import { GetProfitabilityBySalesChannelResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-by-sales-channel-response.dto';
+import { GetProfitabilityBySalesChannelDetailsResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-by-sales-channel-details-response.dto';
 import {
   GetProfitabilityRequestWithContributionDto,
   GetProfitabilityRequestWithoutContributionDto,
@@ -14,6 +17,8 @@ import { GetProfitabilityDetailsResponseDto } from 'src/app/controllers/GetProfi
 type GetProfitabilityRequest =
   | GetProfitabilityRequestWithContributionDto
   | GetProfitabilityRequestWithoutContributionDto;
+
+const VALID_SALES_CHANNELS = new Set(['megatone', 'fravega', 'oncity']);
 
 @Injectable()
 export class GetProfitabilityService {
@@ -35,6 +40,20 @@ export class GetProfitabilityService {
   ): Promise<GetProfitabilityDetailsResponseDto> {
     this.validateRequest(body);
     return this.getProfitabilityInteractor.executeDetailed(body);
+  }
+
+  async getProfitabilityBySalesChannel(
+    body: GetProfitabilityBySalesChannelRequestDto,
+  ): Promise<GetProfitabilityBySalesChannelResponseDto> {
+    this.validateSalesChannelRequest(body);
+    return this.getProfitabilityInteractor.executeBySalesChannel(body);
+  }
+
+  async getProfitabilityDetailsBySalesChannel(
+    body: GetProfitabilityBySalesChannelRequestDto,
+  ): Promise<GetProfitabilityBySalesChannelDetailsResponseDto> {
+    this.validateSalesChannelRequest(body);
+    return this.getProfitabilityInteractor.executeDetailedBySalesChannel(body);
   }
 
   async getProfitabilityBulk(
@@ -130,6 +149,30 @@ export class GetProfitabilityService {
     if (body.length > GetProfitabilityService.MAX_BULK_ITEMS) {
       throw new BadRequestException(
         `body can contain up to ${GetProfitabilityService.MAX_BULK_ITEMS} items`,
+      );
+    }
+  }
+
+  private validateSalesChannelRequest(
+    body: GetProfitabilityBySalesChannelRequestDto,
+  ) {
+    if (!body.sku?.trim()) {
+      throw new BadRequestException('sku is required');
+    }
+
+    if (typeof body.salePrice !== 'number' || body.salePrice <= 0) {
+      throw new BadRequestException('salePrice must be a number greater than 0');
+    }
+
+    if (!body.salesChannel?.trim()) {
+      throw new BadRequestException('salesChannel is required');
+    }
+
+    body.salesChannel = body.salesChannel.trim().toLowerCase() as typeof body.salesChannel;
+
+    if (!VALID_SALES_CHANNELS.has(body.salesChannel)) {
+      throw new BadRequestException(
+        'salesChannel must be one of: megatone, fravega, oncity',
       );
     }
   }

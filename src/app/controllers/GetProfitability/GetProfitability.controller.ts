@@ -14,6 +14,9 @@ import {
   GetProfitabilityRequestWithContributionDto,
   GetProfitabilityRequestWithoutContributionDto,
 } from './dto/get-profitability-request.dto';
+import { GetProfitabilityBySalesChannelRequestDto } from './dto/get-profitability-by-sales-channel-request.dto';
+import { GetProfitabilityBySalesChannelResponseDto } from './dto/get-profitability-by-sales-channel-response.dto';
+import { GetProfitabilityBySalesChannelDetailsResponseDto } from './dto/get-profitability-by-sales-channel-details-response.dto';
 import { GetProfitabilityResponseDto } from './dto/get-profitability-response.dto';
 import { GetProfitabilityDetailsResponseDto } from './dto/get-profitability-details-response.dto';
 import { GetProfitabilityDetailsBulkResponseDto } from './dto/get-profitability-details-bulk-response.dto';
@@ -22,6 +25,9 @@ import { GetProfitabilityDetailsBulkResponseDto } from './dto/get-profitability-
 @ApiExtraModels(
   GetProfitabilityRequestWithContributionDto,
   GetProfitabilityRequestWithoutContributionDto,
+  GetProfitabilityBySalesChannelRequestDto,
+  GetProfitabilityBySalesChannelResponseDto,
+  GetProfitabilityBySalesChannelDetailsResponseDto,
   GetProfitabilityResponseDto,
   GetProfitabilityDetailsResponseDto,
   GetProfitabilityDetailsBulkResponseDto,
@@ -88,6 +94,37 @@ export class GetProfitabilitycontroller {
     return this.getProfitabilityService.getProfitability(body);
   }
 
+  @Post('getProfit/channel')
+  @ApiKeyProtected()
+  @ApiOperation({
+    summary: 'Calcula rentabilidad para un canal externo usando SKU y canal de venta',
+  })
+  @ApiBody({
+    type: GetProfitabilityBySalesChannelRequestDto,
+    examples: {
+      megatone: {
+        summary: 'Pricing para Megatone',
+        value: {
+          sku: 'B0F47N62NN',
+          salePrice: 731399,
+          salesChannel: 'megatone',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Resultado economico de la promocion para un canal externo',
+    type: GetProfitabilityBySalesChannelResponseDto,
+  })
+  async getProfitBySalesChannel(
+    @Body() body: GetProfitabilityBySalesChannelRequestDto,
+  ): Promise<GetProfitabilityBySalesChannelResponseDto> {
+    this.logger.log(
+      `Sales channel price request received: ${JSON.stringify(body)}`,
+    );
+    return this.getProfitabilityService.getProfitabilityBySalesChannel(body);
+  }
+
   @Post('getProfit/details')
   @ApiKeyProtected()
   @ApiOperation({
@@ -141,6 +178,40 @@ export class GetProfitabilitycontroller {
   ): Promise<GetProfitabilityDetailsResponseDto> {
     this.logRequest('Price detail request received', body);
     return this.getProfitabilityService.getProfitabilityDetails(body);
+  }
+
+  @Post('getProfit/channel/details')
+  @ApiKeyProtected()
+  @ApiOperation({
+    summary:
+      'Devuelve el detalle completo de rentabilidad para un canal externo usando SKU y canal de venta',
+  })
+  @ApiBody({
+    type: GetProfitabilityBySalesChannelRequestDto,
+    examples: {
+      megatone: {
+        summary: 'Detalle de pricing para Megatone',
+        value: {
+          sku: 'B0F47N62NN',
+          salePrice: 731399,
+          salesChannel: 'megatone',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Detalle completo de rentabilidad para un canal externo',
+    type: GetProfitabilityBySalesChannelDetailsResponseDto,
+  })
+  async getProfitabilityDetailsBySalesChannel(
+    @Body() body: GetProfitabilityBySalesChannelRequestDto,
+  ): Promise<GetProfitabilityBySalesChannelDetailsResponseDto> {
+    this.logger.log(
+      `Sales channel price detail request received: ${JSON.stringify(body)}`,
+    );
+    return this.getProfitabilityService.getProfitabilityDetailsBySalesChannel(
+      body,
+    );
   }
 
   @Post('getProfit/details/bulk')

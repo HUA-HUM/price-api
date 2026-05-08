@@ -11,6 +11,14 @@ export type GetProfitabilityRequest =
   | GetProfitabilityRequestWithContributionDto
   | GetProfitabilityRequestWithoutContributionDto;
 
+export interface GetProfitabilityBySalesChannelRequest {
+  sku: string;
+  salePrice: number;
+  salesChannel: SalesChannel;
+}
+
+export type SalesChannel = 'megatone' | 'fravega' | 'oncity';
+
 export interface PricingFetchersResult {
   body: GetProfitabilityRequest;
   productStatus: MadreProductStatusDto;

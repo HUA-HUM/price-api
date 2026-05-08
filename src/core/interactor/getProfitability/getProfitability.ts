@@ -6,18 +6,25 @@ import { calculatePrecio } from './calculators/calculatePrecio';
 import { calculateResultados } from './calculators/calculateResultados';
 import { calculateCostosOperativos } from './calculators/calculateCostosOperativos';
 import { calculateValorDolar } from './calculators/calculateValorDolar';
+import { GET_PROFITABILITY_CONFIG } from './getProfitability.config';
+import { GetCategoryBySkuInteractor } from './fetchers/getCategoryBySku';
 import { GetCommissionCategoryInteractor } from './fetchers/getCommissionCategory';
 
 import { GetDolarValueInteractor } from './fetchers/getDolarValue';
 import { GetPriceSkuInteractor } from './fetchers/getPriceSku';
 import { GetTaxesInteractor } from './fetchers/getTaxes';
 import {
+  GetProfitabilityBySalesChannelRequest,
   GetProfitabilityDetailedResult,
   GetProfitabilityRequest,
   PricingFetchersResult,
+  SalesChannel,
 } from './getProfitability.types';
+import { GetProfitabilityBySalesChannelResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-by-sales-channel-response.dto';
+import { GetProfitabilityBySalesChannelDetailsResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-by-sales-channel-details-response.dto';
 import { GetProfitabilityResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-response.dto';
 import { MadreHttpError } from 'src/core/drivers/repositories/madre-api/http/errors/MadreHttpError';
+import { MeliCommissionCategoryEntity } from 'src/core/entitis/meli-api/getCommissionCategory/MeliCommissionCategory';
 
 @Injectable()
 export class GetProfitabilityInteractor {
@@ -29,6 +36,7 @@ export class GetProfitabilityInteractor {
     private readonly getPriceSkuInteractor: GetPriceSkuInteractor,
     private readonly getDolarValueInteractor: GetDolarValueInteractor,
     private readonly getTaxesInteractor: GetTaxesInteractor,
+    private readonly getCategoryBySkuInteractor: GetCategoryBySkuInteractor,
     private readonly getCommissionCategoryInteractor: GetCommissionCategoryInteractor,
   ) {}
 
@@ -36,6 +44,30 @@ export class GetProfitabilityInteractor {
     body: GetProfitabilityRequest,
   ): Promise<GetProfitabilityResponseDto> {
     const detail = await this.executeDetailed(body);
+    return this.buildProfitabilityResponse(detail);
+  }
+
+  async executeBySalesChannel(
+    body: GetProfitabilityBySalesChannelRequest,
+  ): Promise<GetProfitabilityBySalesChannelResponseDto> {
+    const detail = await this.executeDetailedBySalesChannelInternal(body);
+    const response = this.buildProfitabilityResponse(detail);
+
+    return {
+      input: {
+        sku: body.sku,
+        salePrice: body.salePrice,
+        salesChannel: body.salesChannel,
+      },
+      prices: response.prices,
+      economics: response.economics,
+      status: response.status,
+    };
+  }
+
+  private buildProfitabilityResponse(
+    detail: GetProfitabilityDetailedResult,
+  ): GetProfitabilityResponseDto {
     const cost = detail.precio.suggestedPrice;
     const profitAmount = Number(
       (detail.prices.sellerNetPrice - cost).toFixed(2),
@@ -66,6 +98,70 @@ export class GetProfitabilityInteractor {
         shouldPause: !profitable,
       },
     };
+  }
+
+  async executeDetailedBySalesChannel(
+    body: GetProfitabilityBySalesChannelRequest,
+  ): Promise<GetProfitabilityBySalesChannelDetailsResponseDto> {
+    const detail = await this.executeDetailedBySalesChannelInternal(body);
+    return this.mapSalesChannelDetailResponse(body, detail);
+  }
+
+  private async executeDetailedBySalesChannelInternal(
+    body: GetProfitabilityBySalesChannelRequest,
+  ): Promise<GetProfitabilityDetailedResult> {
+    let categoryId: string | null;
+
+    try {
+      categoryId = await this.getCategoryBySkuInteractor.execute(body.sku);
+    } catch (error) {
+      if (this.shouldReturnZeroedResult(error)) {
+        this.logger.warn(
+          `Returning zeroed profitability detail because category lookup failed: ${JSON.stringify({
+            sku: body.sku,
+            salesChannel: body.salesChannel,
+            reason:
+              error instanceof Error ? error.message : 'Unknown Madre error',
+          })}`,
+        );
+        return this.buildZeroedDetailedResult({
+          mla: '',
+          categoryId: '',
+          publicationType: body.salesChannel,
+          sku: body.sku,
+          salePrice: body.salePrice,
+          meliContributionPercentage: 0,
+        });
+      }
+
+      throw error;
+    }
+
+    if (!categoryId) {
+      this.logger.warn(
+        `Returning zeroed profitability detail because categoryId was not found for sku ${body.sku}`,
+      );
+      return this.buildZeroedDetailedResult({
+        mla: '',
+        categoryId: '',
+        publicationType: body.salesChannel,
+        sku: body.sku,
+        salePrice: body.salePrice,
+        meliContributionPercentage: 0,
+      });
+    }
+
+    return this.calculateDetailedResult({
+      body: {
+        mla: '',
+        categoryId,
+        publicationType: body.salesChannel,
+        sku: body.sku,
+        salePrice: body.salePrice,
+        meliContributionPercentage: 0,
+      },
+      commissionCategory: this.buildSalesChannelCommission(body.salesChannel),
+    });
   }
 
   private isProfitable({
@@ -141,6 +237,27 @@ export class GetProfitabilityInteractor {
   async executeDetailed(
     body: GetProfitabilityRequest,
   ): Promise<GetProfitabilityDetailedResult> {
+    const commissionCategory =
+      await this.getCommissionCategoryInteractor.execute({
+        mla: body.mla,
+        price: body.salePrice,
+        categoryId: body.categoryId,
+        listingTypeId: body.publicationType,
+      });
+
+    return this.calculateDetailedResult({
+      body,
+      commissionCategory,
+    });
+  }
+
+  private async calculateDetailedResult({
+    body,
+    commissionCategory,
+  }: {
+    body: GetProfitabilityRequest;
+    commissionCategory: MeliCommissionCategoryEntity;
+  }): Promise<GetProfitabilityDetailedResult> {
     let productStatus;
     let taxes;
 
@@ -171,14 +288,6 @@ export class GetProfitabilityInteractor {
     }
 
     const officialDolar = await this.getDolarValueInteractor.execute();
-
-    const commissionCategory =
-      await this.getCommissionCategoryInteractor.execute({
-        mla: body.mla,
-        price: body.salePrice,
-        categoryId: body.categoryId,
-        listingTypeId: body.publicationType,
-      });
 
     const fetchers: PricingFetchersResult = {
       body,
@@ -243,6 +352,38 @@ export class GetProfitabilityInteractor {
         ).toFixed(1)}%`,
       },
       precio,
+    };
+  }
+
+  private buildSalesChannelCommission(
+    salesChannel: SalesChannel,
+  ): MeliCommissionCategoryEntity {
+    return {
+      percentage:
+        GET_PROFITABILITY_CONFIG.salesChannelCommissions[salesChannel],
+      fixedFee: null,
+      grossAmount: null,
+    };
+  }
+
+  private mapSalesChannelDetailResponse(
+    body: GetProfitabilityBySalesChannelRequest,
+    detail: GetProfitabilityDetailedResult,
+  ): GetProfitabilityBySalesChannelDetailsResponseDto {
+    return {
+      input: {
+        sku: body.sku,
+        salePrice: body.salePrice,
+        salesChannel: body.salesChannel,
+      },
+      prices: detail.prices,
+      datosBase: detail.datosBase,
+      tiposDeCambio: detail.tiposDeCambio,
+      costosOperativos: detail.costosOperativos,
+      emo: detail.emo,
+      costosCalculados: detail.costosCalculados,
+      resultados: detail.resultados,
+      precio: detail.precio,
     };
   }
 
