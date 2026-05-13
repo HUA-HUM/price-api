@@ -4,6 +4,7 @@ import {
 } from 'src/core/adapters/madre-api/getTaxes/IGetTaxesRepository';
 import type { IGetTaxesRepository } from 'src/core/adapters/madre-api/getTaxes/IGetTaxesRepository';
 import { TaxCategory } from 'src/core/entitis/madre-api/getTaxes/TaxCategory';
+import { MadreHttpError } from 'src/core/drivers/repositories/madre-api/http/errors/MadreHttpError';
 
 @Injectable()
 export class GetTaxesInteractor {
@@ -18,13 +19,22 @@ export class GetTaxesInteractor {
 
   async executeMany(categoryMlas: string[]): Promise<Map<string, TaxCategory>> {
     const uniqueCategoryMlas = [...new Set(categoryMlas.filter((item) => item?.trim()))];
-    const taxes = await Promise.all(
-      uniqueCategoryMlas.map(async (categoryMla) => [
-        categoryMla,
-        await this.execute(categoryMla),
-      ] as const),
+    const taxesByCategory = new Map<string, TaxCategory>();
+
+    await Promise.all(
+      uniqueCategoryMlas.map(async (categoryMla) => {
+        try {
+          taxesByCategory.set(categoryMla, await this.execute(categoryMla));
+        } catch (error) {
+          if (error instanceof MadreHttpError && error.statusCode === 404) {
+            return;
+          }
+
+          throw error;
+        }
+      }),
     );
 
-    return new Map(taxes);
+    return taxesByCategory;
   }
 }
