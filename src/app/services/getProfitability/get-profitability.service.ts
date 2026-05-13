@@ -60,48 +60,14 @@ export class GetProfitabilityService {
     body: GetProfitabilityRequest[],
   ): Promise<GetProfitabilityResponseDto[]> {
     this.validateBulkRequest(body);
-
-    return Promise.all(
-      body.map(async (item, index) => {
-        try {
-          return await this.getProfitability(item);
-        } catch (error) {
-          if (error instanceof BadRequestException) {
-            throw new BadRequestException(`item ${index + 1}: ${error.message}`);
-          }
-
-          if (error instanceof NotFoundException) {
-            throw new NotFoundException(`item ${index + 1}: ${error.message}`);
-          }
-
-          throw error;
-        }
-      }),
-    );
+    return this.getProfitabilityInteractor.executeBulk(body);
   }
 
   async getProfitabilityDetailsBulk(
     body: GetProfitabilityRequest[],
   ): Promise<GetProfitabilityDetailsResponseDto[]> {
     this.validateBulkRequest(body);
-
-    return Promise.all(
-      body.map(async (item, index) => {
-        try {
-          return await this.getProfitabilityDetails(item);
-        } catch (error) {
-          if (error instanceof BadRequestException) {
-            throw new BadRequestException(`item ${index + 1}: ${error.message}`);
-          }
-
-          if (error instanceof NotFoundException) {
-            throw new NotFoundException(`item ${index + 1}: ${error.message}`);
-          }
-
-          throw error;
-        }
-      }),
-    );
+    return this.getProfitabilityInteractor.executeDetailedBulk(body);
   }
 
   private validateRequest(body: GetProfitabilityRequest) {

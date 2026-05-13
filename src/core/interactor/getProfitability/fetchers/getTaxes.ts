@@ -15,4 +15,16 @@ export class GetTaxesInteractor {
   async execute(categoryMla: string): Promise<TaxCategory> {
     return this.repository.getByMla(categoryMla);
   }
+
+  async executeMany(categoryMlas: string[]): Promise<Map<string, TaxCategory>> {
+    const uniqueCategoryMlas = [...new Set(categoryMlas.filter((item) => item?.trim()))];
+    const taxes = await Promise.all(
+      uniqueCategoryMlas.map(async (categoryMla) => [
+        categoryMla,
+        await this.execute(categoryMla),
+      ] as const),
+    );
+
+    return new Map(taxes);
+  }
 }

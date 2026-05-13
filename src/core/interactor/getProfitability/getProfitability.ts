@@ -25,6 +25,9 @@ import { GetProfitabilityBySalesChannelDetailsResponseDto } from 'src/app/contro
 import { GetProfitabilityResponseDto } from 'src/app/controllers/GetProfitability/dto/get-profitability-response.dto';
 import { MadreHttpError } from 'src/core/drivers/repositories/madre-api/http/errors/MadreHttpError';
 import { MeliCommissionCategoryEntity } from 'src/core/entitis/meli-api/getCommissionCategory/MeliCommissionCategory';
+import { DolarEntity } from 'src/core/entitis/getDolar/DolarEntity';
+import { MadreProductStatusDto } from 'src/core/entitis/madre-api/getPrice/dto/MadreProductStatusDto';
+import { TaxCategory } from 'src/core/entitis/madre-api/getTaxes/TaxCategory';
 
 @Injectable()
 export class GetProfitabilityInteractor {
@@ -45,6 +48,52 @@ export class GetProfitabilityInteractor {
   ): Promise<GetProfitabilityResponseDto> {
     const detail = await this.executeDetailed(body);
     return this.buildProfitabilityResponse(detail);
+  }
+
+  async executeBulk(
+    bodies: GetProfitabilityRequest[],
+  ): Promise<GetProfitabilityResponseDto[]> {
+    const details = await this.executeDetailedBulk(bodies);
+    return details.map((detail) => this.buildProfitabilityResponse(detail));
+  }
+
+  async executeDetailedBulk(
+    bodies: GetProfitabilityRequest[],
+  ): Promise<GetProfitabilityDetailedResult[]> {
+    const uniqueSkus = [...new Set(bodies.map((item) => item.sku.trim()))];
+    const uniqueCategoryIds = [
+      ...new Set(bodies.map((item) => item.categoryId.trim())),
+    ];
+
+    const [officialDolar, productStatuses, taxesByCategory, commissionEntries] =
+      await Promise.all([
+        this.getDolarValueInteractor.execute(),
+        this.getPriceSkuInteractor.executeMany(uniqueSkus),
+        this.getTaxesInteractor.executeMany(uniqueCategoryIds),
+        Promise.all(
+          bodies.map(async (body) => [
+            this.buildCommissionKey(body),
+            await this.getCommissionCategoryInteractor.execute({
+              mla: body.mla,
+              price: body.salePrice,
+              categoryId: body.categoryId,
+              listingTypeId: body.publicationType,
+            }),
+          ] as const),
+        ),
+      ]);
+
+    const commissionsByRequest = new Map(commissionEntries);
+
+    return bodies.map((body) =>
+      this.buildDetailedResultFromResolvedData({
+        body,
+        productStatus: productStatuses.get(body.sku) ?? null,
+        taxes: taxesByCategory.get(body.categoryId) ?? null,
+        officialDolar,
+        commissionCategory: commissionsByRequest.get(this.buildCommissionKey(body)),
+      }),
+    );
   }
 
   async executeBySalesChannel(
@@ -288,6 +337,80 @@ export class GetProfitabilityInteractor {
     }
 
     const officialDolar = await this.getDolarValueInteractor.execute();
+    return this.buildDetailedResultFromResolvedData({
+      body,
+      productStatus,
+      taxes,
+      officialDolar,
+      commissionCategory,
+    });
+  }
+
+  private buildSalesChannelCommission(
+    salesChannel: SalesChannel,
+  ): MeliCommissionCategoryEntity {
+    return {
+      percentage:
+        GET_PROFITABILITY_CONFIG.salesChannelCommissions[salesChannel],
+      fixedFee: null,
+      grossAmount: null,
+    };
+  }
+
+  private mapSalesChannelDetailResponse(
+    body: GetProfitabilityBySalesChannelRequest,
+    detail: GetProfitabilityDetailedResult,
+  ): GetProfitabilityBySalesChannelDetailsResponseDto {
+    return {
+      input: {
+        sku: body.sku,
+        salePrice: body.salePrice,
+        salesChannel: body.salesChannel,
+      },
+      prices: detail.prices,
+      datosBase: detail.datosBase,
+      tiposDeCambio: detail.tiposDeCambio,
+      costosOperativos: detail.costosOperativos,
+      emo: detail.emo,
+      costosCalculados: detail.costosCalculados,
+      resultados: detail.resultados,
+      precio: detail.precio,
+    };
+  }
+
+  private shouldReturnZeroedResult(error: unknown): boolean {
+    if (error instanceof NotFoundException) {
+      return true;
+    }
+
+    return error instanceof MadreHttpError && error.statusCode === 404;
+  }
+
+  private buildDetailedResultFromResolvedData({
+    body,
+    productStatus,
+    taxes,
+    officialDolar,
+    commissionCategory,
+  }: {
+    body: GetProfitabilityRequest;
+    productStatus: MadreProductStatusDto | null;
+    taxes: TaxCategory | null;
+    officialDolar: DolarEntity;
+    commissionCategory?: MeliCommissionCategoryEntity;
+  }): GetProfitabilityDetailedResult {
+    if (!productStatus || !taxes || !commissionCategory) {
+      this.logger.warn(
+        `Returning zeroed profitability detail because resolved data is missing: ${JSON.stringify({
+          sku: body.sku,
+          categoryId: body.categoryId,
+          hasProductStatus: Boolean(productStatus),
+          hasTaxes: Boolean(taxes),
+          hasCommissionCategory: Boolean(commissionCategory),
+        })}`,
+      );
+      return this.buildZeroedDetailedResult(body);
+    }
 
     const fetchers: PricingFetchersResult = {
       body,
@@ -298,9 +421,7 @@ export class GetProfitabilityInteractor {
     };
 
     const datosBase = calculateDatosBase(fetchers);
-
     const tiposDeCambio = calculateValorDolar(fetchers.officialDolar);
-
     const emo = calculateEmo(fetchers);
     const costosOperativos = calculateCostosOperativos(
       fetchers,
@@ -355,44 +476,13 @@ export class GetProfitabilityInteractor {
     };
   }
 
-  private buildSalesChannelCommission(
-    salesChannel: SalesChannel,
-  ): MeliCommissionCategoryEntity {
-    return {
-      percentage:
-        GET_PROFITABILITY_CONFIG.salesChannelCommissions[salesChannel],
-      fixedFee: null,
-      grossAmount: null,
-    };
-  }
-
-  private mapSalesChannelDetailResponse(
-    body: GetProfitabilityBySalesChannelRequest,
-    detail: GetProfitabilityDetailedResult,
-  ): GetProfitabilityBySalesChannelDetailsResponseDto {
-    return {
-      input: {
-        sku: body.sku,
-        salePrice: body.salePrice,
-        salesChannel: body.salesChannel,
-      },
-      prices: detail.prices,
-      datosBase: detail.datosBase,
-      tiposDeCambio: detail.tiposDeCambio,
-      costosOperativos: detail.costosOperativos,
-      emo: detail.emo,
-      costosCalculados: detail.costosCalculados,
-      resultados: detail.resultados,
-      precio: detail.precio,
-    };
-  }
-
-  private shouldReturnZeroedResult(error: unknown): boolean {
-    if (error instanceof NotFoundException) {
-      return true;
-    }
-
-    return error instanceof MadreHttpError && error.statusCode === 404;
+  private buildCommissionKey(body: GetProfitabilityRequest): string {
+    return [
+      body.mla,
+      body.categoryId,
+      body.publicationType,
+      body.salePrice,
+    ].join('|');
   }
 
   private buildZeroedDetailedResult(

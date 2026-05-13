@@ -21,4 +21,19 @@ export class GetPriceSkuInteractor {
 
     return items.find((item) => item.sku === sku) ?? items[0];
   }
+
+  async executeMany(skus: string[]): Promise<Map<string, MadreProductStatusDto>> {
+    const items = await this.repository.getBySkus(skus);
+    const productsBySku = new Map<string, MadreProductStatusDto>();
+
+    for (const item of items) {
+      if (!item.sku?.trim() || productsBySku.has(item.sku)) {
+        continue;
+      }
+
+      productsBySku.set(item.sku, item);
+    }
+
+    return productsBySku;
+  }
 }
