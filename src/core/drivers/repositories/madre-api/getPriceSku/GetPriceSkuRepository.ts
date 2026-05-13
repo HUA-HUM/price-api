@@ -27,6 +27,8 @@ export class GetMadreProductsStatusRepository implements IGetMadreProductsStatus
         '/api/automeli/product-snapshots/search',
         {
           skus: sanitizedSkus,
+          fields: ['sku', 'totalPrice', 'maxWeight'],
+          uniqueBySku: true,
         },
       );
 
@@ -38,11 +40,11 @@ export class GetMadreProductsStatusRepository implements IGetMadreProductsStatus
   ): MadreProductStatusDto {
     return {
       sku: item.sku,
-      price: item.scrapedPrice,
+      price: item.scrapedPrice ?? item.totalPrice,
       amazonPrice: item.totalPrice,
       maxWeight: item.maxWeight,
-      stock: item.stockQuantity,
-      status: item.amzStatus,
+      stock: item.stockQuantity ?? 0,
+      status: item.amzStatus ?? '',
     };
   }
 }
