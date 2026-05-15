@@ -101,6 +101,7 @@ export class GetProfitabilityInteractor {
   ): Promise<GetProfitabilityBySalesChannelResponseDto> {
     const detail = await this.executeDetailedBySalesChannelInternal(body);
     const response = this.buildProfitabilityResponse(detail);
+    const profitable = this.isSalesChannelProfitable(detail);
 
     return {
       input: {
@@ -110,7 +111,10 @@ export class GetProfitabilityInteractor {
       },
       prices: response.prices,
       economics: response.economics,
-      status: response.status,
+      status: {
+        profitable,
+        shouldPause: !profitable,
+      },
     };
   }
 
@@ -361,6 +365,8 @@ export class GetProfitabilityInteractor {
     body: GetProfitabilityBySalesChannelRequest,
     detail: GetProfitabilityDetailedResult,
   ): GetProfitabilityBySalesChannelDetailsResponseDto {
+    const profitable = this.isSalesChannelProfitable(detail);
+
     return {
       input: {
         sku: body.sku,
@@ -375,7 +381,48 @@ export class GetProfitabilityInteractor {
       costosCalculados: detail.costosCalculados,
       resultados: detail.resultados,
       precio: detail.precio,
+      status: {
+        profitable,
+        shouldPause: !profitable,
+      },
     };
+  }
+
+  private isSalesChannelProfitable(
+    detail: GetProfitabilityDetailedResult,
+  ): boolean {
+    const discountPercent = this.parsePercent(detail.precio.discount);
+
+    if (discountPercent <= 0 || discountPercent > 40) {
+      return false;
+    }
+
+    const requiredPositiveFields: Array<[string, number]> = [
+      ['prices.salePrice', detail.prices.salePrice],
+      ['prices.sellerNetPrice', detail.prices.sellerNetPrice],
+      ['datosBase.weightKg', detail.datosBase.weightKg],
+      ['datosBase.volumetricWeightKg', detail.datosBase.volumetricWeightKg],
+      ['tiposDeCambio.tcAmco', detail.tiposDeCambio.tcAmco],
+      ['tiposDeCambio.tcTlq', detail.tiposDeCambio.tcTlq],
+      [
+        'costosOperativos.commissionMpPercentage',
+        detail.costosOperativos.commissionMpPercentage,
+      ],
+      ['costosOperativos.precioAmzAmount', detail.costosOperativos.precioAmzAmount],
+      ['costosOperativos.depositoUsaAmount', detail.costosOperativos.depositoUsaAmount],
+      ['costosOperativos.costosAmcoAmount', detail.costosOperativos.costosAmcoAmount],
+      ['costosOperativos.imptosAmcoAmount', detail.costosOperativos.imptosAmcoAmount],
+      ['emo.ivaCatAranc', detail.emo.ivaCatAranc],
+      ['emo.sumaTasasYDer', detail.emo.sumaTasasYDer],
+      ['precio.suggestedPrice', detail.precio.suggestedPrice],
+    ];
+
+    return requiredPositiveFields.every(([, value]) => value > 0);
+  }
+
+  private parsePercent(value: string): number {
+    const normalizedValue = Number.parseFloat(value.replace('%', '').trim());
+    return Number.isFinite(normalizedValue) ? normalizedValue : 0;
   }
 
   private shouldReturnZeroedResult(error: unknown): boolean {

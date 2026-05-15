@@ -111,6 +111,14 @@ class SalesChannelPrecioDto {
   discount: string;
 }
 
+class SalesChannelDetailStatusDto {
+  @ApiProperty({ example: true })
+  profitable: boolean;
+
+  @ApiProperty({ example: false })
+  shouldPause: boolean;
+}
+
 export class GetProfitabilityBySalesChannelDetailsResponseDto {
   @ApiProperty({ type: SalesChannelDetailInputDto })
   input: SalesChannelDetailInputDto;
@@ -138,4 +146,7 @@ export class GetProfitabilityBySalesChannelDetailsResponseDto {
 
   @ApiProperty({ type: SalesChannelPrecioDto })
   precio: SalesChannelPrecioDto;
+
+  @ApiProperty({ type: SalesChannelDetailStatusDto })
+  status: SalesChannelDetailStatusDto;
 }
