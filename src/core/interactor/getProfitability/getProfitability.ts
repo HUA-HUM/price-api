@@ -96,6 +96,65 @@ export class GetProfitabilityInteractor {
     );
   }
 
+  async executeDetailedBySalesChannelBulk(
+    bodies: GetProfitabilityBySalesChannelRequest[],
+  ): Promise<GetProfitabilityBySalesChannelDetailsResponseDto[]> {
+    const uniqueSkus = [...new Set(bodies.map((item) => item.sku.trim()))];
+    const [categoriesBySku, productStatuses, officialDolar] = await Promise.all([
+      this.getCategoryBySkuInteractor.executeMany(uniqueSkus),
+      this.getPriceSkuInteractor.executeMany(uniqueSkus),
+      this.getDolarValueInteractor.execute(),
+    ]);
+
+    const uniqueCategoryIds = [
+      ...new Set(
+        bodies
+          .map((body) => categoriesBySku.get(body.sku))
+          .filter((categoryId): categoryId is string => Boolean(categoryId)),
+      ),
+    ];
+    const taxesByCategory =
+      await this.getTaxesInteractor.executeMany(uniqueCategoryIds);
+
+    return bodies.map((body) => {
+      const categoryId = categoriesBySku.get(body.sku);
+
+      if (!categoryId) {
+        this.logger.warn(
+          `Returning zeroed profitability detail because categoryId was not found for sku ${body.sku}`,
+        );
+        return this.mapSalesChannelDetailResponse(
+          body,
+          this.buildZeroedDetailedResult({
+            mla: '',
+            categoryId: '',
+            publicationType: body.salesChannel,
+            sku: body.sku,
+            salePrice: body.salePrice,
+            meliContributionPercentage: 0,
+          }),
+        );
+      }
+
+      const detail = this.buildDetailedResultFromResolvedData({
+        body: {
+          mla: '',
+          categoryId,
+          publicationType: body.salesChannel,
+          sku: body.sku,
+          salePrice: body.salePrice,
+          meliContributionPercentage: 0,
+        },
+        productStatus: productStatuses.get(body.sku) ?? null,
+        taxes: taxesByCategory.get(categoryId) ?? null,
+        officialDolar,
+        commissionCategory: this.buildSalesChannelCommission(body.salesChannel),
+      });
+
+      return this.mapSalesChannelDetailResponse(body, detail);
+    });
+  }
+
   async executeBySalesChannel(
     body: GetProfitabilityBySalesChannelRequest,
   ): Promise<GetProfitabilityBySalesChannelResponseDto> {

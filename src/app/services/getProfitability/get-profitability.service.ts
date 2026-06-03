@@ -56,6 +56,16 @@ export class GetProfitabilityService {
     return this.getProfitabilityInteractor.executeDetailedBySalesChannel(body);
   }
 
+  async getProfitabilityDetailsBulkBySalesChannel(
+    body: GetProfitabilityBySalesChannelRequestDto[],
+  ): Promise<GetProfitabilityBySalesChannelDetailsResponseDto[]> {
+    this.validateSalesChannelBulkRequest(body);
+    body.forEach((item) => this.validateSalesChannelRequest(item));
+    return this.getProfitabilityInteractor.executeDetailedBySalesChannelBulk(
+      body,
+    );
+  }
+
   async getProfitabilityBulk(
     body: GetProfitabilityRequest[],
   ): Promise<GetProfitabilityResponseDto[]> {
@@ -104,6 +114,24 @@ export class GetProfitabilityService {
   }
 
   private validateBulkRequest(body: GetProfitabilityRequest[]) {
+    if (!Array.isArray(body)) {
+      throw new BadRequestException('body must be an array');
+    }
+
+    if (body.length === 0) {
+      throw new BadRequestException('body must contain at least 1 item');
+    }
+
+    if (body.length > GetProfitabilityService.MAX_BULK_ITEMS) {
+      throw new BadRequestException(
+        `body can contain up to ${GetProfitabilityService.MAX_BULK_ITEMS} items`,
+      );
+    }
+  }
+
+  private validateSalesChannelBulkRequest(
+    body: GetProfitabilityBySalesChannelRequestDto[],
+  ) {
     if (!Array.isArray(body)) {
       throw new BadRequestException('body must be an array');
     }

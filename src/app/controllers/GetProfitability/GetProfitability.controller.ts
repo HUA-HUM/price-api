@@ -17,6 +17,7 @@ import {
 import { GetProfitabilityBySalesChannelRequestDto } from './dto/get-profitability-by-sales-channel-request.dto';
 import { GetProfitabilityBySalesChannelResponseDto } from './dto/get-profitability-by-sales-channel-response.dto';
 import { GetProfitabilityBySalesChannelDetailsResponseDto } from './dto/get-profitability-by-sales-channel-details-response.dto';
+import { GetProfitabilityBySalesChannelDetailsBulkResponseDto } from './dto/get-profitability-by-sales-channel-details-bulk-response.dto';
 import { GetProfitabilityResponseDto } from './dto/get-profitability-response.dto';
 import { GetProfitabilityDetailsResponseDto } from './dto/get-profitability-details-response.dto';
 import { GetProfitabilityDetailsBulkResponseDto } from './dto/get-profitability-details-bulk-response.dto';
@@ -28,6 +29,7 @@ import { GetProfitabilityDetailsBulkResponseDto } from './dto/get-profitability-
   GetProfitabilityBySalesChannelRequestDto,
   GetProfitabilityBySalesChannelResponseDto,
   GetProfitabilityBySalesChannelDetailsResponseDto,
+  GetProfitabilityBySalesChannelDetailsBulkResponseDto,
   GetProfitabilityResponseDto,
   GetProfitabilityDetailsResponseDto,
   GetProfitabilityDetailsBulkResponseDto,
@@ -212,6 +214,91 @@ export class GetProfitabilitycontroller {
     return this.getProfitabilityService.getProfitabilityDetailsBySalesChannel(
       body,
     );
+  }
+
+  @Post('getProfit/channel/details/bulk')
+  @ApiKeyProtected()
+  @ApiOperation({
+    summary:
+      'Devuelve el detalle completo en lote para hasta 50 promociones de canales externos con paginado de respuesta',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    example: 1,
+    description: 'Pagina a devolver. Default: 1.',
+  })
+  @ApiQuery({
+    name: 'perPage',
+    required: false,
+    example: 10,
+    description: 'Cantidad de items por pagina. Default: total del lote. Max: 50.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'array',
+      maxItems: 50,
+      items: {
+        $ref: getSchemaPath(GetProfitabilityBySalesChannelRequestDto),
+      },
+    },
+    examples: {
+      bulkExample: {
+        summary: 'Lote de detalle para canales externos',
+        value: [
+          {
+            sku: 'B0F47N62NN',
+            salePrice: 731399,
+            salesChannel: 'megatone',
+          },
+          {
+            sku: 'B08S348KVR',
+            salePrice: 236999,
+            salesChannel: 'fravega',
+          },
+        ],
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Detalle completo paginado para las promociones de canales externos enviadas',
+    type: GetProfitabilityBySalesChannelDetailsBulkResponseDto,
+  })
+  async getProfitabilityDetailsBulkBySalesChannel(
+    @Body() body: GetProfitabilityBySalesChannelRequestDto[],
+    @Query('page') pageQuery?: string,
+    @Query('perPage') perPageQuery?: string,
+  ): Promise<GetProfitabilityBySalesChannelDetailsBulkResponseDto> {
+    const page = this.parsePositiveInteger(pageQuery, 1);
+    const requestedPerPage = this.parsePositiveInteger(perPageQuery, body.length);
+    const perPage = Math.min(requestedPerPage, 50);
+
+    this.logger.log(
+      `Bulk sales channel price detail request received: ${body.length} items (page ${page}, perPage ${perPage})`,
+    );
+    body.forEach((item, index) => {
+      this.logger.log(
+        `Bulk sales channel detail item ${index + 1} received: ${JSON.stringify(item)}`,
+      );
+    });
+
+    const results =
+      await this.getProfitabilityService.getProfitabilityDetailsBulkBySalesChannel(
+        body,
+      );
+    const total = results.length;
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * perPage;
+    const items = results.slice(start, start + perPage);
+
+    return {
+      items,
+      total,
+      page: safePage,
+      perPage,
+      totalPages,
+    };
   }
 
   @Post('getProfit/details/bulk')

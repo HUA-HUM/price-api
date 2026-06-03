@@ -21,4 +21,18 @@ export class GetCategoryBySkuInteractor {
     const item = items.find((candidate) => candidate.sku === sku) ?? items[0];
     return item.matches?.[0]?.categoryId ?? null;
   }
+
+  async executeMany(skus: string[]): Promise<Map<string, string>> {
+    const items = await this.repository.getBySkus(skus);
+    const categoriesBySku = new Map<string, string>();
+
+    items.forEach((item) => {
+      const categoryId = item.matches?.[0]?.categoryId;
+      if (item.sku && categoryId) {
+        categoriesBySku.set(item.sku, categoryId);
+      }
+    });
+
+    return categoriesBySku;
+  }
 }
