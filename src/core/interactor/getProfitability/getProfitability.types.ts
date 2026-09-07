@@ -72,6 +72,13 @@ export interface PrecioResult {
 }
 
 export interface GetProfitabilityDetailedResult {
+  /**
+   * true cuando el resultado son ceros de relleno porque falto algun dato de
+   * entrada (SKU no esta en madre, categoria sin impuestos, comision ausente).
+   * Sirve para distinguir "no pude calcular" de "calcule y da cero", que hasta
+   * ahora eran indistinguibles para los consumidores.
+   */
+  unresolved?: boolean;
   input: {
     mla: string;
     categoryId: string;

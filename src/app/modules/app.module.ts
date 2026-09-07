@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ApiKeyGuard } from '../security/api-key.guard';
+import { AllExceptionsFilter } from '../filters/all-exceptions.filter';
 import { AppController } from '../controllers/app.controller';
 import { GetProfitabilityModule } from './getProfitability/GetProfitability.Module';
 
@@ -17,6 +18,10 @@ import { GetProfitabilityModule } from './getProfitability/GetProfitability.Modu
     {
       provide: APP_GUARD,
       useClass: ApiKeyGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
     },
   ],
 })

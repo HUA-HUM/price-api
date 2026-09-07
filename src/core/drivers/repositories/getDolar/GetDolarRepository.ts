@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
+import { DependencyError } from '../../../errors/DependencyError';
 import { IGetDolarRepository } from 'src/core/adapters/getDolar/IGetDolarRepository';
 import { DolarEntity } from 'src/core/entitis/getDolar/DolarEntity';
 
@@ -91,7 +92,12 @@ export class GetDolarRepository implements IGetDolarRepository {
         return this.cachedValue.value;
       }
 
-      throw new Error(
+      // DependencyError en vez de Error pelado: asi el filtro global lo reporta
+      // como PRICE_DEP_FAILURE con failedDependency 'criptoya' en lugar de
+      // esconderlo detras de un "Internal server error" sin culpable.
+      throw new DependencyError(
+        'criptoya',
+        axios.isAxiosError(error) ? (error.response?.status ?? null) : null,
         `No se pudo obtener la cotizacion desde CriptoYa: ${this.formatError(error)}`,
       );
     }

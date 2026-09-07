@@ -3,7 +3,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app/modules/app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // En produccion solo se emiten error y warn: los endpoints bulk logueaban una
+  // linea por item (~60k por sync), que es el grueso del volumen y no aporta nada.
+  const app = await NestFactory.create(AppModule, {
+    logger:
+      process.env.NODE_ENV === 'production'
+        ? ['error', 'warn']
+        : ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Price API')

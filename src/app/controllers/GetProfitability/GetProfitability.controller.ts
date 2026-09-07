@@ -276,11 +276,6 @@ export class GetProfitabilitycontroller {
     this.logger.log(
       `Bulk sales channel price detail request received: ${body.length} items (page ${page}, perPage ${perPage})`,
     );
-    body.forEach((item, index) => {
-      this.logger.log(
-        `Bulk sales channel detail item ${index + 1} received: ${JSON.stringify(item)}`,
-      );
-    });
 
     const results =
       await this.getProfitabilityService.getProfitabilityDetailsBulkBySalesChannel(
@@ -377,9 +372,6 @@ export class GetProfitabilitycontroller {
     this.logger.log(
       `Bulk price detail request received: ${body.length} items (page ${page}, perPage ${perPage})`,
     );
-    body.forEach((item, index) => {
-      this.logRequest(`Bulk detail item ${index + 1} received`, item);
-    });
 
     const results =
       await this.getProfitabilityService.getProfitabilityDetailsBulk(body);
@@ -459,9 +451,6 @@ export class GetProfitabilitycontroller {
     >,
   ): Promise<GetProfitabilityResponseDto[]> {
     this.logger.log(`Bulk price request received: ${body.length} items`);
-    body.forEach((item, index) => {
-      this.logRequest(`Bulk item ${index + 1} received`, item);
-    });
 
     return this.getProfitabilityService.getProfitabilityBulk(body);
   }

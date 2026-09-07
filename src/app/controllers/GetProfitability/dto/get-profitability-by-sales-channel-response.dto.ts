@@ -55,6 +55,16 @@ class SalesChannelProfitabilityStatusDto {
 
   @ApiProperty({ example: false })
   shouldPause: boolean;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'false cuando price-api no pudo calcular la rentabilidad y devolvio ceros de relleno ' +
+      '(SKU ausente en madre, categoria sin impuestos, comision de Meli no resuelta). ' +
+      'Con resolved=false, profitable/shouldPause/economics NO son una medicion: son el default. ' +
+      'Los consumidores no deberian tomar decisiones de precio con este flag en false.',
+  })
+  resolved: boolean;
 }
 
 export class GetProfitabilityBySalesChannelResponseDto {

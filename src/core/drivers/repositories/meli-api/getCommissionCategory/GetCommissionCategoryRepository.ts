@@ -6,6 +6,7 @@ import {
   IGetCommissionCategoryRepository,
 } from 'src/core/adapters/meli-api/getCommissionCategory/IGetCommissionCategoryRepository';
 import { MeliCommissionCategoryEntity } from 'src/core/entitis/meli-api/getCommissionCategory/MeliCommissionCategory';
+import { DependencyError } from '../../../../errors/DependencyError';
 
 type MeliCommissionApiResponse = {
   percentage?: number;
@@ -27,6 +28,8 @@ type MeliCommissionApiResponse = {
 export class GetCommissionCategoryRepository
   implements IGetCommissionCategoryRepository
 {
+  private static readonly REQUEST_TIMEOUT_MS = 10_000;
+
   constructor(private readonly configService: ConfigService) {}
 
   async getByProduct(
@@ -48,17 +51,24 @@ export class GetCommissionCategoryRepository
       throw new BadRequestException('listingTypeId is required');
     }
 
-    const response = await axios.get<MeliCommissionApiResponse>(
-      `${this.getBaseUrl()}/meli/products/${params.mla}/commission`,
-      {
-        headers: this.getHeaders(),
-        params: {
-          price: params.price,
-          category_id: params.categoryId,
-          listing_type_id: params.listingTypeId,
+    let response;
+
+    try {
+      response = await axios.get<MeliCommissionApiResponse>(
+        `${this.getBaseUrl()}/meli/products/${params.mla}/commission`,
+        {
+          timeout: GetCommissionCategoryRepository.REQUEST_TIMEOUT_MS,
+          headers: this.getHeaders(),
+          params: {
+            price: params.price,
+            category_id: params.categoryId,
+            listing_type_id: params.listingTypeId,
+          },
         },
-      },
-    );
+      );
+    } catch (error) {
+      throw DependencyError.fromAxios('meli-api', error);
+    }
 
     return {
       percentage:

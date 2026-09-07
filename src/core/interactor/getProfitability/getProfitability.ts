@@ -65,26 +65,61 @@ export class GetProfitabilityInteractor {
       ...new Set(bodies.map((item) => item.categoryId.trim())),
     ];
 
-    const [officialDolar, productStatuses, taxesByCategory, commissionEntries] =
+    // Los tres primeros fetchers son compartidos por todo el lote: si fallan no
+    // hay nada calculable para ningun item y el lote entero debe fallar. La
+    // comision, en cambio, se pide item por item contra meli-api: un fallo
+    // puntual invalida solo ese item y no tumba a los otros 49.
+    const [officialDolar, productStatuses, taxesByCategory, commissionResults] =
       await Promise.all([
         this.getDolarValueInteractor.execute(),
         this.getPriceSkuInteractor.executeMany(uniqueSkus),
         this.getTaxesInteractor.executeMany(uniqueCategoryIds),
         Promise.all(
-          bodies.map(async (body) => [
-            this.buildCommissionKey(body),
-            await this.getCommissionCategoryInteractor.execute({
-              mla: body.mla,
-              price: body.salePrice,
-              categoryId: body.categoryId,
-              listingTypeId: body.publicationType,
-            }),
-          ] as const),
+          bodies.map(async (body) => {
+            const key = this.buildCommissionKey(body);
+
+            try {
+              return {
+                key,
+                commissionCategory:
+                  await this.getCommissionCategoryInteractor.execute({
+                    mla: body.mla,
+                    price: body.salePrice,
+                    categoryId: body.categoryId,
+                    listingTypeId: body.publicationType,
+                  }),
+              };
+            } catch (error) {
+              this.logger.error(
+                `Commission lookup failed for mla ${body.mla} (sku ${body.sku}): ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+              return { key, commissionCategory: null };
+            }
+          }),
         ),
       ]);
 
-    const commissionsByRequest = new Map(commissionEntries);
+    const commissionsByRequest = new Map(
+      commissionResults
+        .filter((result) => result.commissionCategory !== null)
+        .map((result) => [result.key, result.commissionCategory!] as const),
+    );
+    const failedCommissions = commissionResults.filter(
+      (result) => result.commissionCategory === null,
+    ).length;
 
+    if (failedCommissions > 0) {
+      this.logger.error(
+        `Bulk profitability: ${failedCommissions} of ${bodies.length} items could not resolve their Mercado Libre commission; they are returned with status.resolved = false`,
+      );
+    }
+
+    // El item cuya comision fallo no quedo en el mapa, asi que cae en el
+    // resultado en cero de buildDetailedResultFromResolvedData, que lo marca
+    // con unresolved=true. Los consumidores lo distinguen por status.resolved:
+    // no es "no rentable", es "no se pudo calcular".
     return bodies.map((body) =>
       this.buildDetailedResultFromResolvedData({
         body,
@@ -173,6 +208,7 @@ export class GetProfitabilityInteractor {
       status: {
         profitable,
         shouldPause: !profitable,
+        resolved: detail.unresolved !== true,
       },
     };
   }
@@ -208,6 +244,7 @@ export class GetProfitabilityInteractor {
       status: {
         profitable,
         shouldPause: !profitable,
+        resolved: detail.unresolved !== true,
       },
     };
   }
@@ -443,6 +480,7 @@ export class GetProfitabilityInteractor {
       status: {
         profitable,
         shouldPause: !profitable,
+        resolved: detail.unresolved !== true,
       },
     };
   }
@@ -598,6 +636,7 @@ export class GetProfitabilityInteractor {
     const meliContributionPercentage = body.meliContributionPercentage ?? 0;
 
     return {
+      unresolved: true,
       input: {
         mla: body.mla,
         categoryId: body.categoryId,
